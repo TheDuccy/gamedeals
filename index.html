@@ -19,114 +19,151 @@
 
     <!-- Search Bar -->
     <div>
-      <input id="searchBar" type="text" placeholder="Search games..." 
+      <input id="searchBar" type="text" placeholder="Search games..."
              class="px-3 py-2 rounded bg-gray-700 text-white focus:outline-none">
     </div>
   </header>
 
-  <!-- Sidebar -->
-  <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-800 p-4 hidden shadow-lg">
+  <!-- Sidebar (Genre Filters) -->
+  <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-800 p-4 hidden shadow-lg overflow-y-auto">
     <h2 class="text-xl font-semibold mb-4">Filter by Genre</h2>
-    <ul class="space-y-3">
-      <li><button onclick="filterByGenre('Shooter')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Shooter</button></li>
-      <li><button onclick="filterByGenre('RPG')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">RPG</button></li>
-      <li><button onclick="filterByGenre('Horror')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Horror</button></li>
-      <li><button onclick="filterByGenre('Souls-like')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Souls-like</button></li>
-      <li><button onclick="filterByGenre('All')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Show All</button></li>
+    <ul id="genreList" class="space-y-3">
+      <!-- dynamically populated -->
+      <li><button onclick="filterByGenre('All')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">All</button></li>
     </ul>
   </aside>
 
-  <!-- Content -->
+  <!-- MainDeals Container -->
   <main class="p-6 space-y-6" id="dealsContainer">
     <!-- Game cards will load here -->
   </main>
 
-  <!-- Footer -->
   <footer class="bg-gray-800 text-gray-400 text-center p-4 mt-6">
     <p>© 2025 Game Deals Tracker | Built with ❤️ for gamers</p>
   </footer>
 
-  <!-- Scripts -->
   <script>
-    // 🎮 Example App IDs with genres (Steam App IDs)
-    const games = [
-      { id: 1091500, genre: "RPG" },        // Cyberpunk 2077
-      { id: 1245620, genre: "Souls-like" }, // Elden Ring
-      { id: 782330, genre: "Shooter" },     // DOOM Eternal
-      { id: 381210, genre: "Horror" },      // Dead by Daylight
-      { id: 1174180, genre: "RPG" },        // Red Dead Redemption 2
-    ];
+  // Language: HTML + JavaScript
 
-    let allGamesData = [];
+  const games = [
+    // Example AppIDs
+    { id: 1091500 },        // Cyberpunk 2077
+    { id: 1245620 },        // Elden Ring
+    { id: 782330 },         // DOOM Eternal
+    { id: 381210 },         // Dead by Daylight
+    { id: 1174180 },        // Red Dead Redemption 2
+  ];
 
-    async function loadGame(appId, genre) {
-      try {
-        const res = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
-        const data = await res.json();
-        const game = data[appId].data;
+  let allGamesData = [];
+  let availableGenres = new Set();
 
-        const gameData = {
-          id: appId,
-          name: game.name,
-          desc: game.short_description,
-          img: game.header_image,
-          priceOld: game.price_overview ? (game.price_overview.initial / 100).toFixed(2) : "N/A",
-          priceNew: game.price_overview ? (game.price_overview.final / 100).toFixed(2) : "Free",
-          discount: game.price_overview ? game.price_overview.discount_percent : 0,
-          url: `https://store.steampowered.com/app/${appId}`,
-          genre: genre
-        };
-
-        allGamesData.push(gameData);
-        renderGames(allGamesData);
-      } catch (err) {
-        console.error("Error loading game:", appId, err);
+  async function loadGame(appId) {
+    try {
+      const res = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
+      if (!res.ok) {
+        console.error("Fetch failed for appId", appId, res.status);
+        return;
       }
+      const data = await res.json();
+      const appData = data[appId];
+      if (!appData || !appData.data) {
+        console.error("No data for appId", appId, appData);
+        return;
+      }
+      const game = appData.data;
+
+      // Pull genre or categories if available
+      let genresList = [];
+      if (game.genres) {
+        genresList = game.genres.map(g => g.description);
+      } else if (game.categories) {
+        // categories is another array; include those descriptions
+        genresList = game.categories.map(c => c.description);
+      }
+
+      const gameData = {
+        id: appId,
+        name: game.name,
+        desc: game.short_description || "",
+        img: game.header_image,
+        priceOld: game.price_overview ? (game.price_overview.initial / 100).toFixed(2) : null,
+        priceNew: game.price_overview ? (game.price_overview.final / 100).toFixed(2) : null,
+        discount: game.price_overview ? game.price_overview.discount_percent : 0,
+        url: `https://store.steampowered.com/app/${appId}`,
+        genres: genresList
+      };
+
+      allGamesData.push(gameData);
+
+      // Add genres to availableGenres set
+      genresList.forEach(g => availableGenres.add(g));
+
+      renderGenres();       // update sidebar dynamically
+      renderGames(allGamesData);
+
+    } catch (err) {
+      console.error("Error loading game:", appId, err);
     }
+  }
 
-    function renderGames(list) {
-      const container = document.getElementById("dealsContainer");
-      container.innerHTML = "";
+  function renderGenres() {
+    const genreListUL = document.getElementById("genreList");
+    // Clear aside from the “All” button
+    genreListUL.innerHTML = `<li><button onclick="filterByGenre('All')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">All</button></li>`;
+    Array.from(availableGenres).sort().forEach(genreName => {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.textContent = genreName;
+      btn.onclick = () => filterByGenre(genreName);
+      btn.className = "w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded";
+      li.appendChild(btn);
+      genreListUL.appendChild(li);
+    });
+  }
 
-      list.forEach(game => {
-        container.innerHTML += `
-          <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
-            <img src="${game.img}" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-64">
-            <div class="flex-1">
-              <h3 class="font-bold text-lg">${game.name}</h3>
-              <p class="text-gray-300 text-sm mb-2">${game.desc}</p>
-              <p class="line-through text-gray-400">$${game.priceOld}</p>
-              <p class="text-green-400 font-bold">$${game.priceNew} (${game.discount}% OFF)</p>
-              <a href="${game.url}" target="_blank">
-                <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
-              </a>
-            </div>
+  function renderGames(list) {
+    const container = document.getElementById("dealsContainer");
+    container.innerHTML = "";
+    list.forEach(game => {
+      container.innerHTML += `
+        <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
+          <img src="${game.img}" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-64">
+          <div class="flex-1">
+            <h3 class="font-bold text-lg">${game.name}</h3>
+            <p class="text-gray-300 text-sm mb-2">${game.desc}</p>
+            ${game.priceOld ? `<p class="line-through text-gray-400">$${game.priceOld}</p>` : ""}
+            ${game.priceNew ? `<p class="text-green-400 font-bold">$${game.priceNew} (${game.discount}% OFF)</p>` : ""}
+            <a href="${game.url}" target="_blank">
+              <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
+            </a>
           </div>
-        `;
-      });
-    }
-
-    document.getElementById("sidebarToggle").addEventListener("click", () => {
-      document.getElementById("sidebar").classList.toggle("hidden");
+        </div>
+      `;
     });
+  }
 
-    function filterByGenre(genre) {
-      if (genre === "All") {
-        renderGames(allGamesData);
-      } else {
-        const filtered = allGamesData.filter(g => g.genre === genre);
-        renderGames(filtered);
-      }
-      document.getElementById("sidebar").classList.add("hidden");
-    }
-
-    document.getElementById("searchBar").addEventListener("input", (e) => {
-      const searchTerm = e.target.value.toLowerCase();
-      const filtered = allGamesData.filter(g => g.name.toLowerCase().includes(searchTerm));
+  function filterByGenre(genre) {
+    if (genre === "All") {
+      renderGames(allGamesData);
+    } else {
+      const filtered = allGamesData.filter(g => g.genres && g.genres.includes(genre));
       renderGames(filtered);
-    });
-    
-    games.forEach(g => loadGame(g.id, g.genre));
+    }
+    document.getElementById("sidebar").classList.add("hidden");
+  }
+
+  document.getElementById("searchBar").addEventListener("input", (e) => {
+    const searchTerm = e.target.value.toLowerCase();
+    const filtered = allGamesData.filter(g => g.name.toLowerCase().includes(searchTerm));
+    renderGames(filtered);
+  });
+
+  document.getElementById("sidebarToggle").addEventListener("click", () => {
+    document.getElementById("sidebar").classList.toggle("hidden");
+  });
+
+  // Load sample games
+  games.forEach(g => loadGame(g.id));
   </script>
 </body>
 </html>
