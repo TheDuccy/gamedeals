@@ -7,163 +7,68 @@
 </head>
 <body class="bg-gray-900 text-white font-sans">
 
-  <!-- Header with Sidebar + Search -->
+  <!-- Header -->
   <header class="bg-gray-800 p-4 flex justify-between items-center shadow-md">
-    <div class="flex items-center space-x-4">
-      <!-- Sidebar Button -->
-      <button id="sidebarToggle" class="bg-yellow-500 text-black px-4 py-2 rounded">
-        ☰ Filters
-      </button>
-      <h1 class="text-2xl font-bold text-yellow-400">🔥 Game Deals Tracker</h1>
-    </div>
-
-    <!-- Search Bar -->
-    <div>
-      <input id="searchBar" type="text" placeholder="Search games..."
-             class="px-3 py-2 rounded bg-gray-700 text-white focus:outline-none">
-    </div>
+    <h1 class="text-2xl font-bold text-yellow-400">🔥 Game Deals Tracker</h1>
+    <input id="searchBar" type="text" placeholder="Search games..." 
+           class="px-3 py-2 rounded bg-gray-700 text-white focus:outline-none">
   </header>
 
-  <!-- Sidebar (Genre Filters) -->
-  <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-800 p-4 hidden shadow-lg overflow-y-auto">
-    <h2 class="text-xl font-semibold mb-4">Filter by Genre</h2>
-    <ul id="genreList" class="space-y-3">
-      <!-- dynamically populated -->
-      <li><button onclick="filterByGenre('All')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">All</button></li>
-    </ul>
-  </aside>
-
-  <!-- MainDeals Container -->
-  <main class="p-6 space-y-6" id="dealsContainer">
-    <!-- Game cards will load here -->
-  </main>
+  <!-- Deals -->
+  <main class="p-6 space-y-6" id="dealsContainer"></main>
 
   <footer class="bg-gray-800 text-gray-400 text-center p-4 mt-6">
-    <p>© 2025 Game Deals Tracker | Built with ❤️ for gamers</p>
+    <p>© 2025 Game Deals Tracker | Powered by CheapShark API</p>
   </footer>
 
   <script>
-  // Language: HTML + JavaScript
+    const apiUrl = "https://www.cheapshark.com/api/1.0/deals?storeID=1&pageSize=20&sortBy=Savings";
 
-  const games = [
-    // Example AppIDs
-    { id: 1091500 },        // Cyberpunk 2077
-    { id: 1245620 },        // Elden Ring
-    { id: 782330 },         // DOOM Eternal
-    { id: 381210 },         // Dead by Daylight
-    { id: 1174180 },        // Red Dead Redemption 2
-  ];
+    let allGames = [];
 
-  let allGamesData = [];
-  let availableGenres = new Set();
-
-  async function loadGame(appId) {
-    try {
-      const res = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
-      if (!res.ok) {
-        console.error("Fetch failed for appId", appId, res.status);
-        return;
-      }
+    async function loadDeals() {
+      const res = await fetch(apiUrl);
       const data = await res.json();
-      const appData = data[appId];
-      if (!appData || !appData.data) {
-        console.error("No data for appId", appId, appData);
-        return;
-      }
-      const game = appData.data;
-
-      // Pull genre or categories if available
-      let genresList = [];
-      if (game.genres) {
-        genresList = game.genres.map(g => g.description);
-      } else if (game.categories) {
-        // categories is another array; include those descriptions
-        genresList = game.categories.map(c => c.description);
-      }
-
-      const gameData = {
-        id: appId,
-        name: game.name,
-        desc: game.short_description || "",
-        img: game.header_image,
-        priceOld: game.price_overview ? (game.price_overview.initial / 100).toFixed(2) : null,
-        priceNew: game.price_overview ? (game.price_overview.final / 100).toFixed(2) : null,
-        discount: game.price_overview ? game.price_overview.discount_percent : 0,
-        url: `https://store.steampowered.com/app/${appId}`,
-        genres: genresList
-      };
-
-      allGamesData.push(gameData);
-
-      // Add genres to availableGenres set
-      genresList.forEach(g => availableGenres.add(g));
-
-      renderGenres();       // update sidebar dynamically
-      renderGames(allGamesData);
-
-    } catch (err) {
-      console.error("Error loading game:", appId, err);
+      allGames = data.map(game => ({
+        title: game.title,
+        img: game.thumb,
+        normalPrice: game.normalPrice,
+        salePrice: game.salePrice,
+        savings: Math.round(game.savings),
+        url: `https://store.steampowered.com/app/${game.steamAppID}`
+      }));
+      renderGames(allGames);
     }
-  }
 
-  function renderGenres() {
-    const genreListUL = document.getElementById("genreList");
-    // Clear aside from the “All” button
-    genreListUL.innerHTML = `<li><button onclick="filterByGenre('All')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">All</button></li>`;
-    Array.from(availableGenres).sort().forEach(genreName => {
-      const li = document.createElement("li");
-      const btn = document.createElement("button");
-      btn.textContent = genreName;
-      btn.onclick = () => filterByGenre(genreName);
-      btn.className = "w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded";
-      li.appendChild(btn);
-      genreListUL.appendChild(li);
-    });
-  }
+    function renderGames(list) {
+      const container = document.getElementById("dealsContainer");
+      container.innerHTML = "";
 
-  function renderGames(list) {
-    const container = document.getElementById("dealsContainer");
-    container.innerHTML = "";
-    list.forEach(game => {
-      container.innerHTML += `
-        <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
-          <img src="${game.img}" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-64">
-          <div class="flex-1">
-            <h3 class="font-bold text-lg">${game.name}</h3>
-            <p class="text-gray-300 text-sm mb-2">${game.desc}</p>
-            ${game.priceOld ? `<p class="line-through text-gray-400">$${game.priceOld}</p>` : ""}
-            ${game.priceNew ? `<p class="text-green-400 font-bold">$${game.priceNew} (${game.discount}% OFF)</p>` : ""}
-            <a href="${game.url}" target="_blank">
-              <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
-            </a>
+      list.forEach(game => {
+        container.innerHTML += `
+          <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
+            <img src="${game.img}" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-48">
+            <div class="flex-1">
+              <h3 class="font-bold text-lg">${game.title}</h3>
+              <p class="line-through text-gray-400">$${game.normalPrice}</p>
+              <p class="text-green-400 font-bold">$${game.salePrice} (${game.savings}% OFF)</p>
+              <a href="${game.url}" target="_blank">
+                <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
+              </a>
+            </div>
           </div>
-        </div>
-      `;
-    });
-  }
-
-  function filterByGenre(genre) {
-    if (genre === "All") {
-      renderGames(allGamesData);
-    } else {
-      const filtered = allGamesData.filter(g => g.genres && g.genres.includes(genre));
-      renderGames(filtered);
+        `;
+      });
     }
-    document.getElementById("sidebar").classList.add("hidden");
-  }
 
-  document.getElementById("searchBar").addEventListener("input", (e) => {
-    const searchTerm = e.target.value.toLowerCase();
-    const filtered = allGamesData.filter(g => g.name.toLowerCase().includes(searchTerm));
-    renderGames(filtered);
-  });
+    // Search
+    document.getElementById("searchBar").addEventListener("input", (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filtered = allGames.filter(g => g.title.toLowerCase().includes(searchTerm));
+      renderGames(filtered);
+    });
 
-  document.getElementById("sidebarToggle").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("hidden");
-  });
-
-  // Load sample games
-  games.forEach(g => loadGame(g.id));
+    loadDeals();
   </script>
 </body>
 </html>
