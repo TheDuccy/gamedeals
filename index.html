@@ -1,74 +1,164 @@
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Game Deals Tracker</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Deals Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* Scroll container height for infinite scroll */
+  main { min-height: 80vh; }
+</style>
 </head>
 <body class="bg-gray-900 text-white font-sans">
 
-  <!-- Header -->
-  <header class="bg-gray-800 p-4 flex justify-between items-center shadow-md">
-    <h1 class="text-2xl font-bold text-yellow-400">🔥 Game Deals Tracker</h1>
-    <input id="searchBar" type="text" placeholder="Search games..." 
-           class="px-3 py-2 rounded bg-gray-700 text-white focus:outline-none">
-  </header>
+<!-- Header -->
+<header class="bg-gray-800 p-4 flex justify-between items-center shadow-md">
+  <h1 class="text-2xl font-bold text-yellow-400">🔥 Game Deals Tracker</h1>
+  <input id="searchBar" type="text" placeholder="Search for any game..."
+         class="px-3 py-2 rounded bg-gray-700 text-white focus:outline-none">
+</header>
 
-  <!-- Deals -->
-  <main class="p-6 space-y-6" id="dealsContainer"></main>
+<!-- Filters Panel -->
+<aside id="filters" class="fixed top-0 left-0 h-full w-64 bg-gray-800 p-4 hidden shadow-lg overflow-y-auto">
+  <h2 class="text-xl font-semibold mb-4">Filters</h2>
+  
+  <label class="block mt-2 mb-1 font-semibold">Store:</label>
+  <select id="storeFilter" class="w-full bg-gray-700 text-white p-2 rounded">
+    <option value="1">Steam</option>
+    <option value="13">Epic Games</option>
+    <option value="23">GOG</option>
+  </select>
 
-  <footer class="bg-gray-800 text-gray-400 text-center p-4 mt-6">
-    <p>© 2025 Game Deals Tracker | Powered by CheapShark API</p>
-  </footer>
+  <label class="block mt-2 mb-1 font-semibold">Price Max ($):</label>
+  <input type="number" id="priceMax" placeholder="e.g., 20" class="w-full bg-gray-700 text-white p-2 rounded">
 
-  <script>
-    const apiUrl = "https://www.cheapshark.com/api/1.0/deals?storeID=1&pageSize=20&sortBy=Savings";
+  <label class="block mt-2 mb-1 font-semibold">AAA / Indie:</label>
+  <select id="aaFilter" class="w-full bg-gray-700 text-white p-2 rounded">
+    <option value="">Any</option>
+    <option value="true">AAA</option>
+    <option value="false">Indie</option>
+  </select>
 
-    let allGames = [];
+  <button id="applyFilters" class="mt-4 w-full bg-yellow-500 text-black py-2 rounded">Apply Filters</button>
+</aside>
 
-    async function loadDeals() {
-      const res = await fetch(apiUrl);
-      const data = await res.json();
-      allGames = data.map(game => ({
-        title: game.title,
-        img: game.thumb,
-        normalPrice: game.normalPrice,
-        salePrice: game.salePrice,
-        savings: Math.round(game.savings),
-        url: `https://store.steampowered.com/app/${game.steamAppID}`
-      }));
-      renderGames(allGames);
+<!-- Toggle Filters Button -->
+<button id="toggleFilters" class="fixed top-4 left-4 bg-yellow-500 text-black px-4 py-2 rounded z-50">☰ Filters</button>
+
+<!-- Deals Container -->
+<main class="p-6 space-y-6" id="dealsContainer"></main>
+
+<!-- Footer -->
+<footer class="bg-gray-800 text-gray-400 text-center p-4 mt-6">
+  <p>© 2025 Game Deals Tracker | Powered by CheapShark API</p>
+</footer>
+
+<script>
+const dealsContainer = document.getElementById("dealsContainer");
+const searchBar = document.getElementById("searchBar");
+const toggleFilters = document.getElementById("toggleFilters");
+const filtersPanel = document.getElementById("filters");
+const applyFilters = document.getElementById("applyFilters");
+const storeFilter = document.getElementById("storeFilter");
+const priceMax = document.getElementById("priceMax");
+const aaFilter = document.getElementById("aaFilter");
+
+let allDeals = [];
+let page = 0;
+let pageSize = 20;
+let currentSearch = "";
+let loading = false;
+
+// Build API URL
+function buildApiUrl() {
+  let url = `https://www.cheapshark.com/api/1.0/deals?pageSize=${pageSize}&pageNumber=${page}&sortBy=DealRating`;
+
+  // Apply filters
+  if (storeFilter.value) url += `&storeID=${storeFilter.value}`;
+  if (priceMax.value) url += `&upperPrice=${priceMax.value}`;
+  if (aaFilter.value) url += `&AAA=${aaFilter.value}`;
+  if (currentSearch) url += `&title=${encodeURIComponent(currentSearch)}`;
+
+  return url;
+}
+
+// Fetch deals
+async function loadDeals(reset=false) {
+  if (loading) return;
+  loading = true;
+  
+  if (reset) {
+    allDeals = [];
+    page = 0;
+    dealsContainer.innerHTML = "";
+  }
+
+  const apiUrl = buildApiUrl();
+  try {
+    const res = await fetch(apiUrl);
+    const data = await res.json();
+    if (data.length === 0 && page === 0) {
+      dealsContainer.innerHTML = `<p class="text-center text-gray-300 text-lg">No deals found for "${currentSearch}".</p>`;
+      loading = false;
+      return;
     }
 
-    function renderGames(list) {
-      const container = document.getElementById("dealsContainer");
-      container.innerHTML = "";
+    allDeals.push(...data);
+    renderDeals(data);
+    page++;
+  } catch(err) {
+    console.error("Failed to load deals:", err);
+  }
+  loading = false;
+}
 
-      list.forEach(game => {
-        container.innerHTML += `
-          <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
-            <img src="${game.img}" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-48">
-            <div class="flex-1">
-              <h3 class="font-bold text-lg">${game.title}</h3>
-              <p class="line-through text-gray-400">$${game.normalPrice}</p>
-              <p class="text-green-400 font-bold">$${game.salePrice} (${game.savings}% OFF)</p>
-              <a href="${game.url}" target="_blank">
-                <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
-              </a>
-            </div>
-          </div>
-        `;
-      });
-    }
+// Render deals
+function renderDeals(deals) {
+  deals.forEach(game => {
+    dealsContainer.innerHTML += `
+      <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
+        <img src="${game.thumb}" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-48">
+        <div class="flex-1">
+          <h3 class="font-bold text-lg">${game.title}</h3>
+          <p class="line-through text-gray-400">$${game.normalPrice}</p>
+          <p class="text-green-400 font-bold">$${game.salePrice} (${Math.round(game.savings)}% OFF)</p>
+          <a href="https://store.steampowered.com/app/${game.steamAppID}" target="_blank">
+            <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
+          </a>
+        </div>
+      </div>
+    `;
+  });
+}
 
-    // Search
-    document.getElementById("searchBar").addEventListener("input", (e) => {
-      const searchTerm = e.target.value.toLowerCase();
-      const filtered = allGames.filter(g => g.title.toLowerCase().includes(searchTerm));
-      renderGames(filtered);
-    });
-
+// Infinite scroll
+window.addEventListener("scroll", () => {
+  if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
     loadDeals();
-  </script>
+  }
+});
+
+// Global search
+searchBar.addEventListener("input", e => {
+  currentSearch = e.target.value;
+  loadDeals(true);
+});
+
+// Toggle filters panel
+toggleFilters.addEventListener("click", () => {
+  filtersPanel.classList.toggle("hidden");
+});
+
+// Apply filters button
+applyFilters.addEventListener("click", () => {
+  currentSearch = searchBar.value;
+  loadDeals(true);
+  filtersPanel.classList.add("hidden");
+});
+
+// Initial load
+loadDeals();
+
+</script>
 </body>
 </html>
