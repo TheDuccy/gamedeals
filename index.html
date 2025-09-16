@@ -6,59 +6,127 @@
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white font-sans">
-  <!-- Header -->
-  <header class="bg-gray-800 shadow-md p-4 text-center">
-    <h1 class="text-3xl font-bold text-yellow-400">🔥 Game Deals Tracker</h1>
-    <p class="text-gray-300">Find the best discounts across Steam, Epic, and GOG!</p>
+
+  <!-- Header with Sidebar + Search -->
+  <header class="bg-gray-800 p-4 flex justify-between items-center shadow-md">
+    <div class="flex items-center space-x-4">
+      <!-- Sidebar Button -->
+      <button id="sidebarToggle" class="bg-yellow-500 text-black px-4 py-2 rounded">
+        ☰ Filters
+      </button>
+      <h1 class="text-2xl font-bold text-yellow-400">🔥 Game Deals Tracker</h1>
+    </div>
+
+    <!-- Search Bar -->
+    <div>
+      <input id="searchBar" type="text" placeholder="Search games..." 
+             class="px-3 py-2 rounded bg-gray-700 text-white focus:outline-none">
+    </div>
   </header>
 
-  <!-- Top 5 Deals -->
-  <section class="p-6">
-    <h2 class="text-2xl font-semibold mb-4">Top 5 Deals Right Now</h2>
-    <div class="space-y-6">
-      <!-- Card -->
-      <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
-        <img src="https://via.placeholder.com/300x150" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-64">
-        <div class="flex-1">
-          <h3 class="font-bold text-lg">Cyberpunk 2077</h3>
-          <p class="line-through text-gray-400">$59.99</p>
-          <p class="text-green-400 font-bold">$23.99 (60% OFF)</p>
-          <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
-        </div>
-      </div>
+  <!-- Sidebar -->
+  <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-gray-800 p-4 hidden shadow-lg">
+    <h2 class="text-xl font-semibold mb-4">Filter by Genre</h2>
+    <ul class="space-y-3">
+      <li><button onclick="filterByGenre('Shooter')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Shooter</button></li>
+      <li><button onclick="filterByGenre('RPG')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">RPG</button></li>
+      <li><button onclick="filterByGenre('Horror')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Horror</button></li>
+      <li><button onclick="filterByGenre('Souls-like')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Souls-like</button></li>
+      <li><button onclick="filterByGenre('All')" class="w-full bg-gray-700 hover:bg-yellow-500 hover:text-black p-2 rounded">Show All</button></li>
+    </ul>
+  </aside>
 
-      <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
-        <img src="https://via.placeholder.com/300x150" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-64">
-        <div class="flex-1">
-          <h3 class="font-bold text-lg">Elden Ring</h3>
-          <p class="line-through text-gray-400">$59.99</p>
-          <p class="text-green-400 font-bold">$39.99 (33% OFF)</p>
-          <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- All Deals -->
-  <section class="p-6">
-    <h2 class="text-2xl font-semibold mb-4">All Deals</h2>
-    <div class="space-y-6">
-      <!-- Example Card -->
-      <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
-        <img src="https://via.placeholder.com/300x150" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-64">
-        <div class="flex-1">
-          <h3 class="font-bold text-lg">Hades</h3>
-          <p class="line-through text-gray-400">$24.99</p>
-          <p class="text-green-400 font-bold">$9.99 (60% OFF)</p>
-          <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
-        </div>
-      </div>
-    </div>
-  </section>
+  <!-- Content -->
+  <main class="p-6 space-y-6" id="dealsContainer">
+    <!-- Game cards will load here -->
+  </main>
 
   <!-- Footer -->
   <footer class="bg-gray-800 text-gray-400 text-center p-4 mt-6">
     <p>© 2025 Game Deals Tracker | Built with ❤️ for gamers</p>
   </footer>
+
+  <!-- Scripts -->
+  <script>
+    // 🎮 Example App IDs with genres (Steam App IDs)
+    const games = [
+      { id: 1091500, genre: "RPG" },        // Cyberpunk 2077
+      { id: 1245620, genre: "Souls-like" }, // Elden Ring
+      { id: 782330, genre: "Shooter" },     // DOOM Eternal
+      { id: 381210, genre: "Horror" },      // Dead by Daylight
+      { id: 1174180, genre: "RPG" },        // Red Dead Redemption 2
+    ];
+
+    let allGamesData = [];
+
+    async function loadGame(appId, genre) {
+      try {
+        const res = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
+        const data = await res.json();
+        const game = data[appId].data;
+
+        const gameData = {
+          id: appId,
+          name: game.name,
+          desc: game.short_description,
+          img: game.header_image,
+          priceOld: game.price_overview ? (game.price_overview.initial / 100).toFixed(2) : "N/A",
+          priceNew: game.price_overview ? (game.price_overview.final / 100).toFixed(2) : "Free",
+          discount: game.price_overview ? game.price_overview.discount_percent : 0,
+          url: `https://store.steampowered.com/app/${appId}`,
+          genre: genre
+        };
+
+        allGamesData.push(gameData);
+        renderGames(allGamesData);
+      } catch (err) {
+        console.error("Error loading game:", appId, err);
+      }
+    }
+
+    function renderGames(list) {
+      const container = document.getElementById("dealsContainer");
+      container.innerHTML = "";
+
+      list.forEach(game => {
+        container.innerHTML += `
+          <div class="bg-gray-800 p-4 rounded-lg shadow flex flex-col sm:flex-row items-center sm:items-start hover:scale-[1.02] transition">
+            <img src="${game.img}" class="rounded mb-3 sm:mb-0 sm:mr-4 w-full sm:w-64">
+            <div class="flex-1">
+              <h3 class="font-bold text-lg">${game.name}</h3>
+              <p class="text-gray-300 text-sm mb-2">${game.desc}</p>
+              <p class="line-through text-gray-400">$${game.priceOld}</p>
+              <p class="text-green-400 font-bold">$${game.priceNew} (${game.discount}% OFF)</p>
+              <a href="${game.url}" target="_blank">
+                <button class="mt-2 bg-yellow-500 text-black py-2 px-4 rounded">View Deal</button>
+              </a>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    document.getElementById("sidebarToggle").addEventListener("click", () => {
+      document.getElementById("sidebar").classList.toggle("hidden");
+    });
+
+    function filterByGenre(genre) {
+      if (genre === "All") {
+        renderGames(allGamesData);
+      } else {
+        const filtered = allGamesData.filter(g => g.genre === genre);
+        renderGames(filtered);
+      }
+      document.getElementById("sidebar").classList.add("hidden");
+    }
+
+    document.getElementById("searchBar").addEventListener("input", (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      const filtered = allGamesData.filter(g => g.name.toLowerCase().includes(searchTerm));
+      renderGames(filtered);
+    });
+    
+    games.forEach(g => loadGame(g.id, g.genre));
+  </script>
 </body>
 </html>
